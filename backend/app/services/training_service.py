@@ -40,9 +40,12 @@ def train_model(
     batch_size: int = 8,
     learning_rate: float = 1e-3,
     base_filters: int = 32,
+    base_model_id: str = None,
 ):
     """
     Background task: train a U-Net on prepared patches.
+    
+    If base_model_id is provided, it loads those weights first to resume training.
 
     1. Loads train_X.npy / train_y.npy from data/processed/{dataset_id}/
     2. Trains with BCELoss + Adam on CUDA (falls back to CPU)
@@ -86,7 +89,21 @@ def train_model(
         update_job(job_id, log_line=f"  GPU: {gpu_name} ({gpu_mem:.1f} GB)")
 
     # Model
+    print(f"DEBUG: base_model_id received: {base_model_id}")
     model = UNet(in_channels=in_channels, base_filters=base_filters).to(device)
+    
+    if base_model_id:
+        db = SessionLocal()
+        try:
+            base_model = db.query(db_models.MLModel).filter(db_models.MLModel.id == base_model_id).first()
+            if base_model and os.path.exists(base_model.weights_path):
+                update_job(job_id, log_line=f"Loading base weights from {base_model.weights_path}...")
+                model.load_state_dict(torch.load(base_model.weights_path, map_location=device))
+            else:
+                update_job(job_id, log_line=f"Warning: Base model {base_model_id} not found or weights missing. Starting from scratch.")
+        finally:
+            db.close()
+
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
     loss_fn = nn.BCELoss()
 

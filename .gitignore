@@ -80,9 +80,17 @@ service_account.json
 *.pem
 *.key
 
-# Data directories (often contain large files)
-data/
-models_registry/
+# Data directories (keep structure, ignore contents)
+backend/data/raw/*
+backend/data/cache/*
+backend/data/predictions/*
+!backend/data/fallback/
+!backend/data/fallback/default_flood_data.tif
+
+# Models (keep only best model)
+models_registry/*
+!models_registry/dad80ebe-a7bb-4791-8352-20a14d848aaf/
+!models_registry/dad80ebe-a7bb-4791-8352-20a14d848aaf/weights.pt
 
 # Jupyter Notebook
 .ipynb_checkpoints

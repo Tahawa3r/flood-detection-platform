@@ -21,7 +21,7 @@ SCOPES = ["https://www.googleapis.com/auth/drive.readonly"]
 def _get_drive_service():
     """Build an authenticated Google Drive API client."""
     creds = service_account.Credentials.from_service_account_file(
-        settings.GOOGLE_APPLICATION_CREDENTIALS, scopes=SCOPES
+        settings.credentials_path, scopes=SCOPES
     )
     return build("drive", "v3", credentials=creds)
 

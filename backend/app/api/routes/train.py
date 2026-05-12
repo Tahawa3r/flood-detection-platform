@@ -20,6 +20,7 @@ class TrainRequest(BaseModel):
     batch_size: int = 8
     learning_rate: float = 1e-3
     base_filters: int = 32
+    base_model_id: str = None
 
 
 class TrainResponse(BaseModel):
@@ -46,6 +47,7 @@ def start_training(payload: TrainRequest, db: Session = Depends(get_db)):
         batch_size=payload.batch_size,
         learning_rate=payload.learning_rate,
         base_filters=payload.base_filters,
+        base_model_id=payload.base_model_id,
     )
 
     return TrainResponse(

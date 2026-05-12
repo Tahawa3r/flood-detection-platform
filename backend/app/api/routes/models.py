@@ -54,16 +54,34 @@ async def upload_model(
     return ml_model
 
 
-@router.get("", response_model=List[schemas.ModelOut])
+@router.get("/")
 def list_models(db: Session = Depends(get_db)):
     """List all registered models."""
-    return db.query(models.MLModel).all()
+    rows = db.query(models.MLModel).all()
+    return [
+        {
+            "id": m.id,
+            "name": m.name,
+            "weights_path": m.weights_path,
+            "config": m.config or {},
+            "metrics": m.metrics or {},
+            "created_at": m.created_at,
+        }
+        for m in rows
+    ]
 
 
-@router.get("/{model_id}", response_model=schemas.ModelOut)
+@router.get("/{model_id}")
 def get_model(model_id: str, db: Session = Depends(get_db)):
     """Get a single model by ID."""
-    ml_model = db.query(models.MLModel).filter(models.MLModel.id == model_id).first()
-    if not ml_model:
+    m = db.query(models.MLModel).filter(models.MLModel.id == model_id).first()
+    if not m:
         raise HTTPException(status_code=404, detail="Model not found")
-    return ml_model
+    return {
+        "id": m.id,
+        "name": m.name,
+        "weights_path": m.weights_path,
+        "config": m.config or {},
+        "metrics": m.metrics or {},
+        "created_at": m.created_at,
+    }

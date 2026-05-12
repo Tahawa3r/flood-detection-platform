@@ -91,12 +91,21 @@ class ModelOut(BaseModel):
     id: str
     name: str
     weights_path: Optional[str] = None
-    config: Dict[str, Any] = {}
-    metrics: Dict[str, Any] = {}
+    config: Optional[Dict[str, Any]] = {}
+    metrics: Optional[Dict[str, Any]] = {}
     created_at: Optional[datetime] = None
 
     class Config:
         from_attributes = True
+
+    @classmethod
+    def model_validate(cls, obj, *args, **kwargs):
+        # Coerce None -> {} for config and metrics
+        if hasattr(obj, 'config') and obj.config is None:
+            obj.config = {}
+        if hasattr(obj, 'metrics') and obj.metrics is None:
+            obj.metrics = {}
+        return super().model_validate(obj, *args, **kwargs)
 
 
 # ─── Prediction ───────────────────────────────────────────────────────
@@ -104,6 +113,7 @@ class ModelOut(BaseModel):
 class PredictionCreate(BaseModel):
     model_id: str
     region_id: str
+    region_geojson: Optional[Dict[str, Any]] = None
     start_pre: Optional[str] = None
     end_pre: Optional[str] = None
     start_post: Optional[str] = None
@@ -118,11 +128,14 @@ class PredictionOut(BaseModel):
     dataset_id: Optional[str] = None
     job_id: Optional[str] = None
     status: str
+    data_source: Optional[str] = None
+    result_version: Optional[int] = None
     start_pre: Optional[str] = None
     end_pre: Optional[str] = None
     start_post: Optional[str] = None
     end_post: Optional[str] = None
     created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
 
     class Config:
         from_attributes = True
@@ -131,3 +144,6 @@ class PredictionOut(BaseModel):
 class PredictionCreateResponse(BaseModel):
     prediction_id: str
     job_id: str
+    status: Optional[str] = None
+    message: Optional[str] = None
+    risk_assessment: Optional[Dict[str, Any]] = None

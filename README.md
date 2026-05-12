@@ -153,11 +153,18 @@ VITE_API_URL=http://127.0.0.1:8000
 - **Output**: Binary flood mask
 - **Training**: Custom dataset with labeled flood events
 
+### State-Driven Inference Engine
+The system implements a production-hardened state machine for prediction lifecycle:
+- **States**: `pending` → `fetching_data` → `processing_data` → `running_model` → `fallback_completed`/`completed` → `upgrade_pending` → `upgraded`
+- **Fallback Mechanism**: Uses default data when real data is unavailable, then upgrades asynchronously
+- **Atomic Transactions**: Row-level locking ensures state consistency under concurrent load
+- **Failure Recovery**: Retains fallback results if upgrade fails
+
 ### Data Pipeline
 1. **Data Acquisition**: Google Earth Engine API for Sentinel-1 data
 2. **Preprocessing**: Radiometric calibration and speckle filtering
 3. **Training**: Patch-based training with data augmentation
-4. **Inference**: Real-time prediction on selected regions
+4. **Inference**: Real-time prediction with fallback-to-real upgrade
 
 ## 🔧 Development
 
@@ -168,9 +175,11 @@ VITE_API_URL=http://127.0.0.1:8000
 
 ### Testing
 ```bash
-# Backend tests (when implemented)
+# Backend verification tests
 cd backend
-pytest
+python tests/test_lifecycle.py          # Deterministic lifecycle test
+python tests/test_failure_injection.py # Failure recovery test
+python tests/test_concurrency.py       # Concurrent load test
 
 # Frontend tests (when implemented)
 cd frontend

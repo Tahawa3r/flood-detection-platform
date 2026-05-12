@@ -13,10 +13,12 @@ function App() {
     <div className="app-container">
       <ControlPanel 
         regionGeoJson={regionGeoJson} 
-        onPredictionComplete={setPredictionResult} 
+        onPredictionComplete={setPredictionResult}
+        onRegionSelect={setRegionGeoJson}
       />
       <MapEditor 
         onRegionSelect={setRegionGeoJson}
+        regionGeoJson={regionGeoJson}
         predictionResult={predictionResult}
       />
     </div>

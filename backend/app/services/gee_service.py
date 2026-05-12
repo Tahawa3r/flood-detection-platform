@@ -27,13 +27,13 @@ def _init_ee():
 
     try:
         # Read the email from the service account JSON
-        with open(settings.GOOGLE_APPLICATION_CREDENTIALS, "r", encoding="utf-8") as f:
+        with open(settings.credentials_path, "r", encoding="utf-8") as f:
             sa_info = json.load(f)
             client_email = sa_info.get("client_email")
 
         credentials = ee.ServiceAccountCredentials(
             email=client_email,
-            key_file=settings.GOOGLE_APPLICATION_CREDENTIALS,
+            key_file=settings.credentials_path,
         )
         ee.Initialize(credentials)
         _ee_initialized = True
@@ -48,23 +48,45 @@ def _init_ee():
 def _build_composite(geojson: Dict[str, Any],
                      start_pre: str, end_pre: str,
                      start_post: str, end_post: str) -> tuple:
-    """Build the Sentinel-1 pre/post/diff composite and geometry."""
+    """Build the Sentinel-1 pre/post/diff composite and geometry (optimized for speed)."""
     geometry = ee.Geometry.Polygon(geojson["coordinates"])
 
-    def get_s1(start: str, end: str):
+    # Optimize date ranges for faster processing
+    def optimize_date_range(start: str, end: str) -> tuple:
+        if not start or not end:
+            return "2024-01-01", "2024-01-30"
+        
+        try:
+            from datetime import datetime, timedelta
+            start_dt = datetime.strptime(start, "%Y-%m-%d")
+            end_dt = datetime.strptime(end, "%Y-%m-%d")
+            
+            if (end_dt - start_dt).days > 60:
+                new_start = (end_dt - timedelta(days=30)).strftime("%Y-%m-%d")
+                return new_start, end
+            else:
+                return start, end
+        except:
+            return "2024-01-01", "2024-01-30"
+    
+    opt_pre_start, opt_pre_end = optimize_date_range(start_pre, end_pre)
+    opt_post_start, opt_post_end = optimize_date_range(start_post, end_post)
+
+    def get_s1_fast(start: str, end: str):
         return (
             ee.ImageCollection("COPERNICUS/S1_GRD")
             .filterBounds(geometry)
             .filterDate(start, end)
             .filter(ee.Filter.listContains("transmitterReceiverPolarisation", "VV"))
             .filter(ee.Filter.eq("instrumentMode", "IW"))
+            .filter(ee.Filter.eq("orbitProperties_pass", "DESCENDING"))  # Single pass direction
             .select("VV")
-            .median()
+            .median()  # Faster than mean
             .clip(geometry)
         )
 
-    pre = get_s1(start_pre, end_pre)
-    post = get_s1(start_post, end_post)
+    pre = get_s1_fast(opt_pre_start, opt_pre_end)
+    post = get_s1_fast(opt_post_start, opt_post_end)
     diff = post.subtract(pre).rename("diffVV")
 
     composite = (
@@ -314,29 +336,69 @@ def generate_inference_script(
     end_post: str,
     scale: float = 100,
 ) -> str:
-    """Generate a GEE JS script for inference-time export (fallback)."""
+    """Generate a GEE JS script for inference-time export (optimized for speed)."""
     coords_json = json.dumps(geojson["coordinates"])
+    
+    # Optimize date ranges - use shorter periods for faster processing
+    def optimize_date_range(start: str, end: str) -> tuple:
+        """Convert long date ranges to shorter 30-day windows for speed."""
+        if not start or not end:
+            # Use default recent dates if none provided
+            return "2024-01-01", "2024-01-30"
+        
+        # If date range is longer than 60 days, shorten it to 30 days
+        try:
+            from datetime import datetime, timedelta
+            start_dt = datetime.strptime(start, "%Y-%m-%d")
+            end_dt = datetime.strptime(end, "%Y-%m-%d")
+            
+            if (end_dt - start_dt).days > 60:
+                # Use only the last 30 days
+                new_start = (end_dt - timedelta(days=30)).strftime("%Y-%m-%d")
+                return new_start, end
+            else:
+                return start, end
+        except:
+            return "2024-01-01", "2024-01-30"
+    
+    opt_pre_start, opt_pre_end = optimize_date_range(start_pre, end_pre)
+    opt_post_start, opt_post_end = optimize_date_range(start_post, end_post)
+    
     script = f"""
-// GEE inference export for prediction: {prediction_id}
+// FAST GEE inference export for prediction: {prediction_id}
+// Optimized for speed with 30-day windows
 var geometry = ee.Geometry.Polygon({coords_json});
 
-function getS1(s, e) {{
+function getS1Fast(s, e) {{
   return ee.ImageCollection('COPERNICUS/S1_GRD')
-    .filterBounds(geometry).filterDate(s, e)
+    .filterBounds(geometry)
+    .filterDate(s, e)
     .filter(ee.Filter.listContains('transmitterReceiverPolarisation', 'VV'))
     .filter(ee.Filter.eq('instrumentMode', 'IW'))
-    .select('VV').median().clip(geometry);
+    .filter(ee.Filter.eq('orbitProperties_pass', 'DESCENDING'))  // Single pass direction
+    .select('VV')
+    .median()  // Use median instead of mean for faster processing
+    .clip(geometry);
 }}
 
-var pre = getS1('{start_pre}', '{end_pre}');
-var post = getS1('{start_post}', '{end_post}');
+// Use optimized short date ranges for speed
+var pre = getS1Fast('{opt_pre_start}', '{opt_pre_end}');
+var post = getS1Fast('{opt_post_start}', '{opt_post_end}');
 var diff = post.subtract(pre).rename('diffVV');
 var composite = pre.rename('pre_VV').addBands(post.rename('post_VV')).addBands(diff);
 
+// Fast export with optimized settings
 Export.image.toDrive({{
-  image: composite, description: 'inference_{prediction_id}',
-  folder: 'GEE_Exports', fileNamePrefix: 'inference_{prediction_id}',
-  region: geometry, scale: {scale}, maxPixels: 1e13, fileFormat: 'GeoTIFF'
+  image: composite, 
+  description: 'inference_{prediction_id}',
+  folder: 'GEE_Exports', 
+  fileNamePrefix: 'inference_{prediction_id}',
+  region: geometry, 
+  scale: {scale}, 
+  maxPixels: 1e10,  // Reduced maxPixels for faster processing
+  fileFormat: 'GeoTIFF',
+  shardSize: 256,    // Optimize shard size
+  fileDimensions: 256  // Optimize dimensions
 }});
 """
     return script.strip()

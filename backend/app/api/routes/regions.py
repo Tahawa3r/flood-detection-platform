@@ -13,7 +13,7 @@ from app.db import models, schemas
 router = APIRouter(prefix="/regions", tags=["regions"])
 
 
-@router.post("", response_model=schemas.RegionOut)
+@router.post("/", response_model=schemas.RegionOut)
 def create_region(payload: schemas.RegionCreate, db: Session = Depends(get_db)):
     """Create a new geographic region."""
     region = models.Region(name=payload.name, geojson=payload.geojson)
@@ -23,7 +23,7 @@ def create_region(payload: schemas.RegionCreate, db: Session = Depends(get_db)):
     return region
 
 
-@router.get("", response_model=List[schemas.RegionOut])
+@router.get("/", response_model=List[schemas.RegionOut])
 def list_regions(db: Session = Depends(get_db)):
     """List all registered regions."""
     return db.query(models.Region).all()

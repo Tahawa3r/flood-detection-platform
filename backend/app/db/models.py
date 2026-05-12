@@ -5,7 +5,7 @@ SQLAlchemy ORM models for the flood detection platform.
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import Column, String, Float, Text, DateTime, JSON, ForeignKey
+from sqlalchemy import Column, String, Float, Text, DateTime, JSON, ForeignKey, Integer
 from sqlalchemy.orm import relationship
 
 from app.db.database import Base
@@ -87,8 +87,11 @@ class Prediction(Base):
     end_pre = Column(String, nullable=True)
     start_post = Column(String, nullable=True)
     end_post = Column(String, nullable=True)
-    status = Column(String, default="pending")  # pending | running | completed | failed
+    status = Column(String, default="pending")  # pending | fetching_data | processing_data | running_model | fallback_completed | upgrade_pending | upgraded | completed | failed
+    data_source = Column(String, default="real")  # real | cached | fallback
+    result_version = Column(Integer, default=1)  # 1 = initial, 2+ = updated
     created_at = Column(DateTime, default=_utcnow)
+    updated_at = Column(DateTime, default=_utcnow, onupdate=_utcnow)
 
     model = relationship("MLModel", back_populates="predictions")
     region = relationship("Region", back_populates="predictions")

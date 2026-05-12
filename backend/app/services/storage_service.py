@@ -19,22 +19,22 @@ def ensure_dir(path: str) -> Path:
 
 def raw_dir(dataset_id: str) -> Path:
     """Return the raw data directory for a dataset."""
-    return ensure_dir(os.path.join(settings.DATA_DIR, "raw", dataset_id))
+    return ensure_dir(os.path.join(settings.data_dir_path, "raw", dataset_id))
 
 
 def processed_dir(dataset_id: str) -> Path:
     """Return the processed data directory for a dataset."""
-    return ensure_dir(os.path.join(settings.DATA_DIR, "processed", dataset_id))
+    return ensure_dir(os.path.join(settings.data_dir_path, "processed", dataset_id))
 
 
 def predictions_dir(prediction_id: str) -> Path:
     """Return the predictions output directory."""
-    return ensure_dir(os.path.join(settings.DATA_DIR, "predictions", prediction_id))
+    return ensure_dir(os.path.join(settings.data_dir_path, "predictions", prediction_id))
 
 
 def model_dir(model_id: str) -> Path:
     """Return the model registry directory for a model."""
-    return ensure_dir(os.path.join(settings.MODELS_DIR, model_id))
+    return ensure_dir(os.path.join(settings.models_dir_path, model_id))
 
 
 def list_files(directory: str, extension: str = None) -> List[str]:

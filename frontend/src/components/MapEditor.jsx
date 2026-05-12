@@ -1,12 +1,27 @@
 import React, { useRef, useState } from 'react';
-import { MapContainer, TileLayer, FeatureGroup, ImageOverlay } from 'react-leaflet';
+import { MapContainer, TileLayer, FeatureGroup, ImageOverlay, GeoJSON, useMap } from 'react-leaflet';
 import { EditControl } from 'react-leaflet-draw';
 import L from 'leaflet';
 
-// Use a beautiful dark map tile layer
-const STADIA_URL = 'https://tiles.stadiamaps.com/tiles/alidade_smooth_dark/{z}/{x}/{y}{r}.png';
+// Use a light, Google Maps-style tile layer
+const MAPTILER_URL = `https://api.maptiler.com/maps/streets-v2/{z}/{x}/{y}{r}.png?key=${import.meta.env.VITE_MAPTILER_API_KEY || 'dzAvc3HYPwk9k2fvjrRt'}`;
 
-export default function MapEditor({ onRegionSelect, predictionResult }) {
+// Debug: Log API key to console
+console.log('MapTiler API Key:', import.meta.env.VITE_MAPTILER_API_KEY ? 'Set' : 'Missing');
+
+function MapViewUpdater({ region }) {
+  const map = useMap();
+  React.useEffect(() => {
+    if (region && region.geojson) {
+      const layer = L.geoJSON(region.geojson);
+      const bounds = layer.getBounds();
+      map.fitBounds(bounds, { padding: [50, 50] });
+    }
+  }, [region, map]);
+  return null;
+}
+
+export default function MapEditor({ onRegionSelect, regionGeoJson, predictionResult }) {
   const [shapeBounds, setShapeBounds] = useState(null);
 
   const onCreated = (e) => {
@@ -32,40 +47,68 @@ export default function MapEditor({ onRegionSelect, predictionResult }) {
 
   return (
     <div className="map-workspace">
-      <MapContainer 
-        center={[35.7595, -5.8340]} 
-        zoom={10} 
-        style={{ height: '100%', width: '100%' }}
-      >
-        <TileLayer
-          url={STADIA_URL}
-          attribution='&copy; Stadia Maps'
-        />
-        <FeatureGroup>
-          <EditControl
-            position="topright"
-            onCreated={onCreated}
-            onDeleted={onDeleted}
-            draw={{
-              polyline: false,
-              polygon: true,
-              circle: false,
-              rectangle: true,
-              marker: false,
-              circlemarker: false,
-            }}
+        <MapContainer
+          center={[35.7595, -5.8340]}
+          zoom={13}
+          style={{ height: '100%', width: '100%' }}
+        >
+          <TileLayer
+            url={`https://api.maptiler.com/maps/satellite/{z}/{x}/{y}.jpg?key=${import.meta.env.VITE_MAPTILER_API_KEY || 'dzAvc3HYPwk9k2fvjrRt'}`}
+            attribution='&copy; <a href="https://www.maptiler.com/copyright/">MapTiler</a> contributors'
           />
+          
+          <FeatureGroup>
+            <EditControl
+              position="topright"
+              onCreated={onCreated}
+              onDeleted={onDeleted}
+              draw={{
+                polyline: false,
+                polygon: {
+                  showArea: false,
+                  showLength: false,
+                },
+                circle: false,
+                rectangle: {
+                  showArea: false,
+                },
+                marker: false,
+                circlemarker: false,
+              }}
+            />
         </FeatureGroup>
-        
-        {predictionResult && shapeBounds && (
-           <ImageOverlay
-              url={`${import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000'}/predictions/${predictionResult.prediction_id}/overlay.png`}
-              bounds={shapeBounds}
-              opacity={0.85}
-              zIndex={10}
-           />
+
+        {regionGeoJson && regionGeoJson.geojson && (
+          <GeoJSON 
+            data={regionGeoJson.geojson} 
+            style={{ color: '#00d2ff', weight: 2, fillOpacity: 0.1 }} 
+          />
         )}
-      </MapContainer>
+
+        <MapViewUpdater region={regionGeoJson} />
+
+        {predictionResult && shapeBounds && (
+            <ImageOverlay
+              url={`${import.meta.env.VITE_API_URL || 'http://127.0.0.1:8080'}/predictions/${predictionResult.prediction_id}/overlay.png`}
+              bounds={shapeBounds}
+              opacity={0.7}
+              zIndex={1000}
+            />
+          )}
+
+          {/* Map Legend */}
+          <div className="map-legend">
+            <h4>Map Legend</h4>
+            <div className="legend-item">
+              <span className="legend-color" style={{ backgroundColor: 'rgba(59, 130, 246, 0.4)', border: '2px solid #3b82f6' }}></span>
+              <span>Selected Region</span>
+            </div>
+            <div className="legend-item">
+              <span className="legend-color" style={{ backgroundColor: 'rgba(0, 0, 255, 0.8)' }}></span>
+              <span>Detected Flood</span>
+            </div>
+          </div>
+        </MapContainer>
     </div>
   );
 }
